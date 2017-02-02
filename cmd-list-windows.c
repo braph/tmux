@@ -49,8 +49,8 @@ const struct cmd_entry cmd_list_windows_entry = {
 	.name = "list-windows",
 	.alias = "lsw",
 
-	.args = { "F:at:", 0, 0 },
-	.usage = "[-a] [-F format] " CMD_TARGET_SESSION_USAGE,
+	.args = { "F:alt:", 0, 0 },
+	.usage = "[-al] [-F format] " CMD_TARGET_SESSION_USAGE,
 
 	.tflag = CMD_SESSION,
 
@@ -85,12 +85,14 @@ cmd_list_windows_session(struct cmd *self, struct session *s,
     struct cmdq_item *item, int type)
 {
 	struct args		*args = self->args;
-	struct winlink		*wl;
+	struct winlink		*wl, *wl_end;
 	u_int			n;
 	struct format_tree	*ft;
 	const char		*template;
 	char			*line;
-
+   int list_last;
+   
+   list_last = args_has(args, 'l');
 	template = args_get(args, 'F');
 	if (template == NULL) {
 		switch (type) {
@@ -103,8 +105,17 @@ cmd_list_windows_session(struct cmd *self, struct session *s,
 		}
 	}
 
+   if (list_last) {
+      wl = TAILQ_FIRST(&s->lastw);
+      wl_end = TAILQ_END(&s->lastw);
+   }
+   else {
+      wl = RB_MIN(winlinks, &s->windows);
+      wl_end = NULL;
+   }
+
 	n = 0;
-	RB_FOREACH(wl, winlinks, &s->windows) {
+   while (wl != wl_end) {
 		ft = format_create(item, 0);
 		format_add(ft, "line", "%u", n);
 		format_defaults(ft, NULL, s, wl, NULL);
@@ -115,5 +126,9 @@ cmd_list_windows_session(struct cmd *self, struct session *s,
 
 		format_free(ft);
 		n++;
-	}
+
+      wl = list_last ?
+         TAILQ_NEXT(wl, sentry) :
+         RB_NEXT(winlinks, &s->windows, wl);
+   }
 }
