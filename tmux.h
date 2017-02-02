@@ -1768,7 +1768,6 @@ u_int		 cmdq_next(struct client *);
 void		 cmdq_guard(struct cmdq_item *, const char *, int);
 void printflike(2, 3) cmdq_print(struct cmdq_item *, const char *, ...);
 void printflike(2, 3) cmdq_error(struct cmdq_item *, const char *, ...);
-void printflike(2, 3) cmdq_write_to_control(struct cmdq_item *, const char *, ...);
 
 /* cmd-string.c */
 int		 cmd_string_split(const char *, int *, char ***);

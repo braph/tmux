@@ -141,6 +141,24 @@ cmdq_remove_group(struct cmdq_item *item)
 	}
 }
 
+/* Write to all control clients. */
+static void
+cmdq_write_control(struct cmd *cmd)
+{
+	struct client	*c;
+	char		*s;
+
+	s = NULL;
+	TAILQ_FOREACH(c, &clients, entry) {
+		if (~c->flags & CLIENT_CONTROL)
+			continue;
+		if (s == NULL)
+			s = cmd_print(cmd);
+		control_write(c, "%%command-executed %s", s);
+	}
+	free(s);
+}
+
 /* Get a command for the command queue. */
 struct cmdq_item *
 cmdq_get_command(struct cmd_list *cmdlist, struct cmd_find_state *current,
@@ -189,7 +207,6 @@ cmdq_fire_command(struct cmdq_item *item)
 	const char		*name;
 	struct cmd_find_state	*fsp, fs;
 	int			 flags;
-   char        *cmd_line;
 
 	flags = !!(cmd->flags & CMD_CONTROL);
 	cmdq_guard(item, "begin", flags);
@@ -223,10 +240,7 @@ out:
 		cmdq_guard(item, "error", flags);
 	else
 		cmdq_guard(item, "end", flags);
-
-   cmd_line = cmd_print(cmd);
-   cmdq_write_to_control(item, "%%command-executed %ld %u %s\n", (long)item->time, item->number, cmd_line);
-   free(cmd_line);
+	cmdq_write_control(cmd);
 
 	return (retval);
 }
@@ -361,36 +375,6 @@ cmdq_next(struct client *c)
 waiting:
 	log_debug("%s %s: exit (wait)", __func__, name);
 	return (items);
-}
-
-/* Write to all control clients. */
-void
-cmdq_write_to_control(__unused struct cmdq_item *item, const char *fmt, ...)
-{
-	struct client	*c;
-	va_list		   ap;
-	char		      *tmp, *msg;
-
-   TAILQ_FOREACH(c, &clients, entry) {
-      if (c->flags & CLIENT_CONTROL) {
-	      va_start(ap, fmt);
-
-         if (~c->flags & CLIENT_UTF8) {
-            xvasprintf(&tmp, fmt, ap);
-            msg = utf8_sanitize(tmp);
-            free(tmp);
-            evbuffer_add(c->stdout_data, msg, strlen(msg));
-            free(msg);
-         } else {
-            evbuffer_add_vprintf(c->stdout_data, fmt, ap);
-         }
-
-		   //evbuffer_add(c->stdout_data, "\n", 1);
-		   server_client_push_stdout(c);
-
-	      va_end(ap);
-      }
-   }
 }
 
 /* Print a guard line. */
