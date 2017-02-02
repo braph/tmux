@@ -158,6 +158,35 @@ control_notify_window_renamed(struct window *w)
 }
 
 void
+control_notify_window_selected(struct session *s, struct window *w)
+{
+   struct client   *c;
+
+   TAILQ_FOREACH(c, &clients, entry) {
+      if (! CONTROL_SHOULD_NOTIFY_CLIENT(c) || c->session == NULL)
+         continue;
+
+      control_write(c, "%%window-selected $%u @%u", s->id, w->id);
+   }
+}
+
+void
+control_notify_pane_selected(struct session *s, struct window *w, u_int pane_id)
+{
+   struct client   *c;
+
+   if (!s || !w)
+      return;
+
+   TAILQ_FOREACH(c, &clients, entry) {
+      if (! CONTROL_SHOULD_NOTIFY_CLIENT(c) || c->session == NULL)
+         continue;
+
+      control_write(c, "%%pane-selected $%u @%u @%u", s->id, w->id, pane_id);
+   }
+}
+
+void
 control_notify_client_session_changed(struct client *c)
 {
 	struct session	*s;

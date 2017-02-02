@@ -441,6 +441,7 @@ window_set_active_pane(struct window *w, struct window_pane *wp)
 	}
 	w->active->active_point = next_active_point++;
 	w->active->flags |= PANE_CHANGED;
+	notify_pane("pane-selected", wp);
 	return (1);
 }
 
