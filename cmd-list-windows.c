@@ -116,7 +116,7 @@ cmd_list_windows_session(struct cmd *self, struct session *s,
 
 	n = 0;
    while (wl != wl_end) {
-		ft = format_create(item, 0);
+		ft = format_create(item, FORMAT_NONE, 0);
 		format_add(ft, "line", "%u", n);
 		format_defaults(ft, NULL, s, wl, NULL);
 
