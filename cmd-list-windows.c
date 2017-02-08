@@ -91,7 +91,7 @@ cmd_list_windows_session(struct cmd *self, struct session *s,
 	const char		*template;
 	char			*line;
    int list_last;
-   
+
    list_last = args_has(args, 'l');
 	template = args_get(args, 'F');
 	if (template == NULL) {
