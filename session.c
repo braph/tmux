@@ -529,7 +529,7 @@ session_set_current(struct session *s, struct winlink *wl)
 	if (wl == s->curw)
 		return (1);
 
-	notify_session_window("window-selected", s, wl->window);
+	notify_session_window("session-window-changed", s, wl->window);
 
 	winlink_stack_remove(&s->lastw, wl);
 	winlink_stack_push(&s->lastw, s->curw);

@@ -86,10 +86,10 @@ notify_callback(struct cmdq_item *item, void *data)
 		control_notify_window_linked(ne->session, ne->window);
 	if (strcmp(ne->name, "window-renamed") == 0)
 		control_notify_window_renamed(ne->window);
-	if (strcmp(ne->name, "window-selected") == 0)
-		control_notify_window_selected(ne->session, ne->window);
-	if (strcmp(ne->name, "pane-selected") == 0)
-		control_notify_pane_selected(ne->session, ne->window, ne->pane);
+	if (strcmp(ne->name, "session-window-changed") == 0)
+		control_notify_session_window_changed(ne->session, ne->window);
+	if (strcmp(ne->name, "window-pane-changed") == 0)
+		control_notify_window_pane_changed(ne->session, ne->window, ne->pane);
 	if (strcmp(ne->name, "client-session-changed") == 0)
 		control_notify_client_session_changed(ne->client);
 	if (strcmp(ne->name, "session-renamed") == 0)

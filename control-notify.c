@@ -158,7 +158,7 @@ control_notify_window_renamed(struct window *w)
 }
 
 void
-control_notify_window_selected(struct session *s, struct window *w)
+control_notify_session_window_changed(struct session *s, struct window *w)
 {
    struct client   *c;
 
@@ -166,12 +166,12 @@ control_notify_window_selected(struct session *s, struct window *w)
       if (! CONTROL_SHOULD_NOTIFY_CLIENT(c) || c->session == NULL)
          continue;
 
-      control_write(c, "%%window-selected $%u @%u", s->id, w->id);
+      control_write(c, "%%session-window-changed $%u @%u", s->id, w->id);
    }
 }
 
 void
-control_notify_pane_selected(struct session *s, struct window *w, u_int pane_id)
+control_notify_window_pane_changed(struct session *s, struct window *w, u_int pane_id)
 {
    struct client   *c;
 
@@ -182,7 +182,7 @@ control_notify_pane_selected(struct session *s, struct window *w, u_int pane_id)
       if (! CONTROL_SHOULD_NOTIFY_CLIENT(c) || c->session == NULL)
          continue;
 
-      control_write(c, "%%pane-selected $%u @%u @%u", s->id, w->id, pane_id);
+      control_write(c, "%%window-pane-changed $%u @%u @%u", s->id, w->id, pane_id);
    }
 }
 
