@@ -235,7 +235,10 @@ void
 options_array_clear(struct options_entry *o)
 {
 	if (OPTIONS_IS_ARRAY(o))
-		o->arraysize = 0;
+      while (o->arraysize) {
+         o->arraysize--;
+         free((void *)o->array[o->arraysize]);
+      }
 }
 
 const char *
