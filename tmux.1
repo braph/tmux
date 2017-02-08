@@ -4237,6 +4237,11 @@ The client is now attached to the session with ID
 .Ar session-id ,
 which is named
 .Ar name .
+.It Ic %session-window-changed Ar session-id Ar window-id
+The ID of active window in the session with ID
+.Ar session-id ,
+has changed to
+.Ar window-id .
 .It Ic %session-renamed Ar name
 The current session was renamed to
 .Ar name .
@@ -4259,6 +4264,13 @@ The window with ID
 .Ar window-id
 was renamed to
 .Ar name .
+.It Ic %window-pane-changed Ar session-id Ar window-id Ar pane-id
+The ID of the active pane in the window with ID
+.Ar window-id
+has changed to
+.Ar pane-id .
+The window belongs to the session with ID
+.Ar session-id .
 .El
 .Sh FILES
 .Bl -tag -width "@SYSCONFDIR@/tmux.confXXX" -compact
