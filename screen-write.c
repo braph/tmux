@@ -25,14 +25,12 @@
 
 static void	screen_write_initctx(struct screen_write_ctx *,
 		    struct tty_ctx *);
-static void	screen_write_save_last(struct screen_write_ctx *,
-		    struct tty_ctx *);
 static void	screen_write_flush(struct screen_write_ctx *);
 
 static int	screen_write_overwrite(struct screen_write_ctx *,
 		    struct grid_cell *, u_int);
-static int	screen_write_combine(struct screen_write_ctx *,
-		    const struct utf8_data *);
+static const struct grid_cell *screen_write_combine(struct screen_write_ctx *,
+		    const struct utf8_data *, u_int *);
 
 static const struct grid_cell screen_write_pad_cell = {
 	GRID_FLAG_PADDING, 0, 8, 8, { { 0 }, 0, 0, 0 }
@@ -435,24 +433,6 @@ screen_write_initctx(struct screen_write_ctx *ctx, struct tty_ctx *ttyctx)
 
 	ttyctx->orlower = s->rlower;
 	ttyctx->orupper = s->rupper;
-}
-
-/* Save last cell on screen. */
-static void
-screen_write_save_last(struct screen_write_ctx *ctx, struct tty_ctx *ttyctx)
-{
-	struct screen		*s = ctx->s;
-	struct grid		*gd = s->grid;
-	struct grid_cell	 gc;
-	u_int			 xx;
-
-	memcpy(&gc, &grid_default_cell, sizeof gc);
-	for (xx = 1; xx <= screen_size_x(s); xx++) {
-		grid_view_get_cell(gd, screen_size_x(s) - xx, s->cy, &gc);
-		if (~gc.flags & GRID_FLAG_PADDING)
-			break;
-	}
-	memcpy(&ttyctx->last_cell, &gc, sizeof ttyctx->last_cell);
 }
 
 /* Set a mode. */
@@ -971,24 +951,25 @@ screen_write_clearendofscreen(struct screen_write_ctx *ctx, u_int bg)
 
 /* Clear to start of screen. */
 void
-screen_write_clearstartofscreen(struct screen_write_ctx *ctx)
+screen_write_clearstartofscreen(struct screen_write_ctx *ctx, u_int bg)
 {
 	struct screen	*s = ctx->s;
 	struct tty_ctx	 ttyctx;
 	u_int		 sx = screen_size_x(s);
 
 	screen_write_initctx(ctx, &ttyctx);
+	ttyctx.bg = bg;
 
 	if (s->cy > 0) {
 		screen_dirty_clear(s, 0, 0, sx - 1, s->cy);
-		grid_view_clear(s->grid, 0, 0, sx, s->cy, 8);
+		grid_view_clear(s->grid, 0, 0, sx, s->cy, bg);
 	}
 	if (s->cx > sx - 1) {
 		screen_dirty_clear(s, 0, s->cy, sx - 1, s->cy);
-		grid_view_clear(s->grid, 0, s->cy, sx, 1, 8);
+		grid_view_clear(s->grid, 0, s->cy, sx, 1, bg);
 	} else {
 		screen_dirty_clear(s, 0, s->cy, s->cx, s->cy);
-		grid_view_clear(s->grid, 0, s->cy, s->cx + 1, 1, 8);
+		grid_view_clear(s->grid, 0, s->cy, s->cx + 1, 1, bg);
 	}
 
 	tty_write(tty_cmd_clearstartofscreen, &ttyctx);
@@ -1039,7 +1020,7 @@ screen_write_cell(struct screen_write_ctx *ctx, const struct grid_cell *gc)
 	struct grid_line	*gl;
 	struct grid_cell 	 tmp_gc, now_gc;
 	struct grid_cell_entry	*gce;
-	int			 insert, skip, selected, wrapped = 0;
+	int			 insert, skip, selected;
 
 	ctx->cells++;
 
@@ -1061,15 +1042,14 @@ screen_write_cell(struct screen_write_ctx *ctx, const struct grid_cell *gc)
 	 * there is space.
 	 */
 	if (width == 0) {
-		if (screen_write_combine(ctx, &gc->data) == 0) {
+		if ((gc = screen_write_combine(ctx, &gc->data, &xx)) != 0) {
+			screen_write_cursormove(ctx, xx, s->cy);
 			screen_write_initctx(ctx, &ttyctx);
-			tty_write(tty_cmd_utf8character, &ttyctx);
+			ttyctx.cell = gc;
+			tty_write(tty_cmd_cell, &ttyctx);
 		}
 		return;
 	}
-
-	/* Initialise the redraw context. */
-	screen_write_initctx(ctx, &ttyctx);
 
 	/* If in insert mode, make space for the cells. */
 	if (s->mode & MODE_INSERT) {
@@ -1085,17 +1065,16 @@ screen_write_cell(struct screen_write_ctx *ctx, const struct grid_cell *gc)
 
 	/* Check this will fit on the current line and wrap if not. */
 	if ((s->mode & MODE_WRAP) && s->cx > sx - width) {
-		screen_write_flush(ctx);
-		screen_write_save_last(ctx, &ttyctx);
 		screen_write_linefeed(ctx, 1);
 		s->cx = 0;	/* carriage return */
-		skip = 0;
-		wrapped = 1;
 	}
 
 	/* Sanity check cursor position. */
 	if (s->cx > sx - width || s->cy > sy - 1)
 		return;
+
+	/* Initialise the redraw context. */
+	screen_write_initctx(ctx, &ttyctx);
 
 	/* Handle overwriting of UTF-8 characters. */
 	gl = &s->grid->linedata[s->grid->hsize + s->cy];
@@ -1176,63 +1155,68 @@ screen_write_cell(struct screen_write_ctx *ctx, const struct grid_cell *gc)
 		tty_write(tty_cmd_cell, &ttyctx);
 		ctx->written++;
 	} else if (!skip) {
-		if (wrapped) {
-			ttyctx.cell = gc;
-			tty_write(tty_cmd_cell, &ttyctx);
-			ctx->written++;
-		} else {
-			/*
-			 * If wp is NULL, we are not updating the terminal and
-			 * don't care about actually writing the cells
-			 * (tty_write will just return). So don't even bother
-			 * allocating the dirty array.
-			 */
-			if (ctx->wp != NULL && s->dirty == NULL) {
-				log_debug("%s: allocating %u bits", __func__,
-				    s->dirtysize);
-				s->dirty = bit_alloc(s->dirtysize);
-			}
-			if (s->dirty != NULL) {
-				bit_set(s->dirty, screen_dirty_bit(s,
-				    ttyctx.ocx, ttyctx.ocy));
-				ctx->dirty++;
-			}
+		/*
+		 * If wp is NULL, we are not updating the terminal and don't
+		 * care about actually writing the cells (tty_write will just
+		 * return). So don't even bother allocating the dirty array.
+		 */
+		if (ctx->wp != NULL && s->dirty == NULL) {
+			log_debug("%s: allocating %u bits", __func__,
+			    s->dirtysize);
+			s->dirty = bit_alloc(s->dirtysize);
+		}
+		if (s->dirty != NULL) {
+			bit_set(s->dirty, screen_dirty_bit(s,
+			    ttyctx.ocx, ttyctx.ocy));
+			ctx->dirty++;
 		}
 	} else
 		ctx->skipped++;
 }
 
 /* Combine a UTF-8 zero-width character onto the previous. */
-static int
-screen_write_combine(struct screen_write_ctx *ctx, const struct utf8_data *ud)
+static const struct grid_cell *
+screen_write_combine(struct screen_write_ctx *ctx, const struct utf8_data *ud,
+    u_int *xx)
 {
 	struct screen		*s = ctx->s;
 	struct grid		*gd = s->grid;
-	struct grid_cell	 gc;
+	static struct grid_cell	 gc;
+	u_int			 n;
 
 	/* Can't combine if at 0. */
 	if (s->cx == 0)
-		return (-1);
+		return (NULL);
 
 	/* Empty data is out. */
 	if (ud->size == 0)
 		fatalx("UTF-8 data empty");
 
 	/* Retrieve the previous cell. */
-	grid_view_get_cell(gd, s->cx - 1, s->cy, &gc);
+	for (n = 1; n < s->cx; n++) {
+		grid_view_get_cell(gd, s->cx - n, s->cy, &gc);
+		if (~gc.flags & GRID_FLAG_PADDING)
+			break;
+	}
+	if (n == s->cx)
+		return (NULL);
+	*xx = s->cx - n;
 
 	/* Check there is enough space. */
 	if (gc.data.size + ud->size > sizeof gc.data.data)
-		return (-1);
+		return (NULL);
+
+	log_debug("%s: %.*s onto %.*s at %u,%u", __func__, (int)ud->size,
+	    ud->data, (int)gc.data.size, gc.data.data, *xx, s->cy);
 
 	/* Append the data. */
 	memcpy(gc.data.data + gc.data.size, ud->data, ud->size);
 	gc.data.size += ud->size;
 
 	/* Set the new cell. */
-	grid_view_set_cell(gd, s->cx - 1, s->cy, &gc);
+	grid_view_set_cell(gd, *xx, s->cy, &gc);
 
-	return (0);
+	return (&gc);
 }
 
 /*
