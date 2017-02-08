@@ -893,6 +893,7 @@ is used, the
 option will not be applied.
 .It Xo Ic refresh-client
 .Op Fl S
+.Op Fl C Ar size
 .Op Fl t Ar target-client
 .Xc
 .D1 (alias: Ic refresh )
@@ -902,6 +903,14 @@ with
 If
 .Fl S
 is specified, only update the client's status bar.
+If
+.Fl C
+is specified and 
+.Ar target-client
+is in control mode, resize the client to 
+.Ar size ,
+which is of the format
+.Ar width,height .
 .It Xo Ic rename-session
 .Op Fl t Ar target-session
 .Ar new-name
@@ -4202,6 +4211,10 @@ For example:
 0: ksh* (1 panes) [80x24] [layout b25f,80x24,0,0,2] @2 (active)
 %end 1363006971 2
 .Ed
+.Pp
+The default client size in control mode is 80x24. It can be changed using the
+.Ic refresh-client
+command.
 .Pp
 In control mode,
 .Nm
