@@ -182,7 +182,7 @@ control_notify_window_pane_changed(struct session *s, struct window *w, u_int pa
       if (! CONTROL_SHOULD_NOTIFY_CLIENT(c) || c->session == NULL)
          continue;
 
-      control_write(c, "%%window-pane-changed $%u @%u @%u", s->id, w->id, pane_id);
+      control_write(c, "%%window-pane-changed $%u @%u %%%u", s->id, w->id, pane_id);
    }
 }
 
