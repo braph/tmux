@@ -4245,6 +4245,12 @@ and the window flags are
 A window pane produced output.
 .Ar value
 escapes non-printable characters and backslash as octal \\xxx.
+.It Ic %command-executed Ar command Op Ar args
+The command 
+.Ar command
+has been run with 
+.Ar args
+as arguments.
 .It Ic %session-changed Ar session-id Ar name
 The client is now attached to the session with ID
 .Ar session-id ,
